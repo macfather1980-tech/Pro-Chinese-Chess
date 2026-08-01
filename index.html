@@ -1,0 +1,2016 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#2c1810">
+<title>象棋大师 - Master Xiangqi</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<style>
+/* ===== CSS RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --board-size: min(72vw, 62vh);
+  --cell-size: calc(var(--board-size) / 8);
+  --piece-size: calc(var(--cell-size) * 0.65);
+  --wood-primary: #d4a054;
+  --wood-dark: #8b6914;
+  --wood-light: #f0d8a0;
+  --board-bg: #e8c876;
+  --board-border: #6b4f1a;
+  --line-color: #5a3a1a;
+  --piece-wood: #f5deb3;
+  --piece-wood-dark: #c4943a;
+  --piece-shadow: rgba(0,0,0,0.3);
+  --red-piece: #cc0000;
+  --black-piece: #1a1a1a;
+  --highlight: rgba(255, 215, 0, 0.55);
+  --last-move: rgba(100, 200, 255, 0.35);
+  --check-glow: rgba(255, 0, 0, 0.6);
+  --ui-bg: #2c1810;
+  --ui-text: #f5e6c8;
+  --ui-accent: #d4a054;
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.3);
+  --radius: 12px;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "STSong", "SimSun", serif;
+  background: linear-gradient(135deg, #1a0f08 0%, #2c1810 50%, #1a0f08 100%);
+  color: var(--ui-text);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-overflow-scrolling: auto;
+  overscroll-behavior: none;
+  touch-action: none;
+  /* Prevent pull-to-refresh on mobile */
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+/* ===== LAYOUT ===== */
+#app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%; height: 100%;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  gap: 8px;
+}
+
+/* ===== HEADER ===== */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: calc(var(--board-size) + 40px);
+  padding: 4px 12px;
+  flex-shrink: 0;
+}
+
+header h1 {
+  font-size: clamp(14px, 2.2vw, 22px);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--ui-accent);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+.header-controls {
+  display: flex;
+  gap: 6px;
+}
+
+/* ===== BOARD CONTAINER ===== */
+#board-container {
+  position: relative;
+  width: var(--board-size);
+  height: calc(var(--board-size) * 10 / 9);
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg), inset 0 0 60px rgba(0,0,0,0.15);
+  overflow: hidden;
+  cursor: default;
+  background: #2c1810;
+}
+
+/* SVG Board */
+#board-svg {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0; left: 0;
+}
+
+/* Pieces layer */
+#pieces-layer {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+
+/* Clickable layer */
+#click-layer {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 10;
+}
+
+/* ===== PIECE STYLES ===== */
+.piece {
+  position: absolute;
+  width: var(--piece-size);
+  height: var(--piece-size);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--piece-size) * 0.58);
+  font-weight: 700;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  /* 3D wood piece */
+  background: radial-gradient(ellipse at 35% 30%, #fff8e8, var(--piece-wood) 50%, var(--piece-wood-dark));
+  border: 2.5px solid var(--piece-wood-dark);
+  box-shadow:
+    2px 3px 6px var(--piece-shadow),
+    inset 0 -2px 4px rgba(0,0,0,0.15),
+    inset 0 2px 4px rgba(255,255,255,0.3);
+}
+
+.piece:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+  z-index: 20;
+}
+
+.piece.selected {
+  transform: translate(-50%, -50%) scale(1.12);
+  box-shadow:
+    0 0 16px var(--highlight),
+    2px 3px 6px var(--piece-shadow),
+    inset 0 -2px 4px rgba(0,0,0,0.15),
+    inset 0 2px 4px rgba(255,255,255,0.3);
+  z-index: 25;
+}
+
+.piece.red { color: var(--red-piece); }
+.piece.black { color: var(--black-piece); }
+
+/* Inner ring on piece */
+.piece::before {
+  content: '';
+  position: absolute;
+  width: 78%;
+  height: 78%;
+  border-radius: 50%;
+  border: 1.5px solid var(--piece-wood-dark);
+  opacity: 0.5;
+}
+
+/* Check indicator */
+.piece.in-check {
+  animation: checkPulse 1s ease-in-out infinite;
+}
+
+@keyframes checkPulse {
+  0%, 100% { box-shadow: 0 0 8px var(--check-glow), 2px 3px 6px var(--piece-shadow); }
+  50% { box-shadow: 0 0 24px var(--check-glow), 2px 3px 6px var(--piece-shadow); }
+}
+
+/* Last move indicator */
+.piece.last-move {
+  box-shadow: 0 0 10px var(--last-move), 2px 3px 6px var(--piece-shadow);
+}
+
+/* ===== HOVER HINTS ===== */
+.move-hint {
+  position: absolute;
+  width: calc(var(--cell-size) * 0.28);
+  height: calc(var(--cell-size) * 0.28);
+  border-radius: 50%;
+  background: var(--highlight);
+  z-index: 3;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: hintPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes hintPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.capture-hint {
+  position: absolute;
+  width: var(--cell-size);
+  height: var(--cell-size);
+  border-radius: 50%;
+  border: 3px solid var(--highlight);
+  z-index: 3;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: hintPulse 1.5s ease-in-out infinite;
+}
+
+/* ===== CONTROLS BAR ===== */
+#controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: calc(var(--board-size) + 40px);
+  flex-shrink: 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border: 1px solid var(--ui-accent);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(212,160,84,0.15), rgba(212,160,84,0.05));
+  color: var(--ui-accent);
+  font-family: inherit;
+  font-size: clamp(11px, 1.5vw, 14px);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  background: linear-gradient(180deg, rgba(212,160,84,0.3), rgba(212,160,84,0.1));
+  box-shadow: 0 0 12px rgba(212,160,84,0.3);
+}
+
+.btn:active {
+  transform: scale(0.96);
+}
+
+.btn.active {
+  background: linear-gradient(180deg, rgba(212,160,84,0.4), rgba(212,160,84,0.2));
+  box-shadow: 0 0 16px rgba(212,160,84,0.4);
+}
+
+.btn.primary {
+  background: linear-gradient(180deg, var(--ui-accent), #b8862d);
+  color: #2c1810;
+  border-color: var(--ui-accent);
+}
+
+.btn.primary:hover {
+  background: linear-gradient(180deg, #e0b850, #d4a054);
+}
+
+.btn.danger {
+  border-color: #cc4444;
+  color: #ff6666;
+}
+
+.btn.danger:hover {
+  background: linear-gradient(180deg, rgba(204,68,68,0.3), rgba(204,68,68,0.1));
+}
+
+/* ===== STATUS BAR ===== */
+#status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 4px 16px;
+  font-size: clamp(11px, 1.4vw, 14px);
+  color: var(--ui-accent);
+  max-width: calc(var(--board-size) + 40px);
+  flex-shrink: 0;
+}
+
+#turn-indicator {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--ui-accent);
+}
+
+#turn-indicator.red-turn { background: var(--red-piece); }
+#turn-indicator.black-turn { background: var(--black-piece); }
+
+/* ===== HISTORY PANEL ===== */
+#history-panel {
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: clamp(10px, 1.3vw, 13px);
+  color: rgba(245,230,200,0.7);
+  text-align: center;
+  max-width: calc(var(--board-size) + 40px);
+  flex-shrink: 0;
+  padding: 2px 8px;
+  line-height: 1.6;
+}
+
+#history-panel::-webkit-scrollbar { width: 4px; }
+#history-panel::-webkit-scrollbar-track { background: transparent; }
+#history-panel::-webkit-scrollbar-thumb { background: var(--ui-accent); border-radius: 2px; }
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  background: linear-gradient(145deg, #3a2518, #2c1810);
+  border: 2px solid var(--ui-accent);
+  border-radius: var(--radius);
+  padding: 24px 32px;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  max-width: 360px;
+  width: 90%;
+}
+
+.modal h2 {
+  font-size: 20px;
+  color: var(--ui-accent);
+  margin-bottom: 16px;
+  letter-spacing: 0.1em;
+}
+
+.modal p {
+  font-size: 14px;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.modal .btn {
+  margin: 4px;
+  min-width: 100px;
+}
+
+/* ===== SETTINGS MODAL ===== */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(212,160,84,0.15);
+}
+
+.setting-row label {
+  font-size: 13px;
+  color: var(--ui-accent);
+}
+
+.setting-row select, .setting-row input {
+  padding: 4px 8px;
+  border: 1px solid var(--ui-accent);
+  border-radius: 6px;
+  background: #1a0f08;
+  color: var(--ui-text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+/* ===== MOBILE OPTIMIZATIONS ===== */
+@media (max-width: 768px) {
+  :root {
+    --board-size: min(94vw, 58vh);
+  }
+  
+  header {
+    padding: 6px 10px;
+  }
+  
+  header h1 {
+    font-size: clamp(12px, 4vw, 18px);
+  }
+  
+  .btn {
+    padding: 8px 12px;
+    font-size: clamp(12px, 3.5vw, 14px);
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  #controls {
+    gap: 6px;
+    padding: 4px;
+  }
+  
+  #history-panel {
+    max-height: 80px;
+    font-size: clamp(10px, 3vw, 13px);
+  }
+  
+  #status-bar {
+    font-size: clamp(10px, 3vw, 13px);
+  }
+  
+  footer {
+    font-size: 9px;
+  }
+  
+  /* Landscape mode for phones */
+  @media (orientation: landscape) {
+    :root {
+      --board-size: min(85vw, 75vh);
+    }
+    
+    #app {
+      padding: 4px;
+      gap: 4px;
+    }
+    
+    header {
+      padding: 2px 8px;
+    }
+    
+    header h1 {
+      font-size: clamp(11px, 3vw, 16px);
+    }
+    
+    .btn {
+      padding: 6px 10px;
+      font-size: clamp(10px, 2.8vw, 13px);
+      min-height: 38px;
+      min-width: 38px;
+    }
+    
+    #controls {
+      gap: 4px;
+    }
+    
+    #history-panel {
+      max-height: 50px;
+      font-size: clamp(9px, 2.5vw, 11px);
+    }
+    
+    #status-bar {
+      font-size: clamp(9px, 2.5vw, 11px);
+    }
+  }
+  
+  /* Small phones */
+  @media (max-width: 375px) {
+    :root {
+      --board-size: min(96vw, 55vh);
+    }
+    
+    .btn {
+      padding: 7px 10px;
+      font-size: clamp(11px, 3.2vw, 13px);
+    }
+  }
+}
+
+/* Large phones/tablets */
+@media (min-width: 769px) and (max-width: 1023px) {
+  :root {
+    --board-size: min(85vw, 60vh);
+  }
+  
+  .btn {
+    min-height: 40px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --board-size: min(600px, 62vh);
+  }
+  #app {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 16px 24px;
+    gap: 16px;
+  }
+  header { max-width: 500px; }
+  #board-container { flex-shrink: 0; }
+  #side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 220px;
+  }
+  #controls { max-width: 220px; flex-direction: column; }
+  #status-bar { max-width: 220px; flex-direction: column; }
+  #history-panel { max-width: 220px; max-height: 200px; text-align: left; }
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes piecePlace {
+  0% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+.piece.just-placed {
+  animation: piecePlace 0.2s ease-out;
+}
+
+@keyframes boardShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+#board-container.shake {
+  animation: boardShake 0.4s ease;
+}
+
+/* ===== TOOLTIP ===== */
+.tooltip {
+  position: relative;
+}
+
+.tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a0f08;
+  color: var(--ui-accent);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  border: 1px solid var(--ui-accent);
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+}
+
+/* Footer */
+footer {
+  font-size: 10px;
+  color: rgba(212,160,84,0.4);
+  text-align: center;
+  padding: 2px;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>♔ 象棋大师 ♚</h1>
+    <div class="header-controls">
+      <button class="btn tooltip" data-tip="Sound" id="btn-sound" onclick="game.toggleSound()">🔊</button>
+      <button class="btn tooltip" data-tip="Settings" id="btn-settings" onclick="game.showSettings()">⚙</button>
+    </div>
+  </header>
+
+  <div id="board-container">
+    <svg id="board-svg" viewBox="0 0 9 10" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="woodGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f0d8a0"/>
+          <stop offset="50%" stop-color="#e8c876"/>
+          <stop offset="100%" stop-color="#d4a054"/>
+        </linearGradient>
+        <linearGradient id="borderGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#6b4f1a"/>
+          <stop offset="100%" stop-color="#4a3510"/>
+        </linearGradient>
+        <filter id="lineShadow">
+          <feDropShadow dx="0.01" dy="0.01" stdDeviation="0.02" flood-color="#3a2510" flood-opacity="0.5"/>
+        </filter>
+      </defs>
+      <!-- Board background -->
+      <rect x="0.16" y="0.10" width="8.68" height="9.80" rx="0.08" fill="url(#woodGrad)" stroke="url(#borderGrad)" stroke-width="0.06"/>
+      <!-- Grid lines group -->
+      <g id="grid-lines" stroke="var(--line-color)" stroke-width="0.025" fill="none" filter="url(#lineShadow)"></g>
+      <!-- River text -->
+      <text id="river-text" x="4.5" y="5.05" text-anchor="middle" dominant-baseline="middle"
+            font-size="0.35" fill="var(--line-color)" font-family="serif" letter-spacing="0.3" opacity="0.7"></text>
+    </svg>
+    <div id="pieces-layer"></div>
+    <div id="click-layer"></div>
+  </div>
+
+  <div id="side-panel" style="display:none;">
+    <div id="status-bar">
+      <span id="turn-indicator" class="red-turn"></span>
+      <span id="turn-text">红方走棋</span>
+      <span id="timer">00:00</span>
+    </div>
+    <div id="history-panel"></div>
+    <div id="controls">
+      <button class="btn" onclick="game.undo()">↩ 悔棋</button>
+      <button class="btn" onclick="game.flipBoard()">🔄 翻盘</button>
+      <button class="btn primary" onclick="game.newGame()">🎮 新局</button>
+      <button class="btn danger" onclick="game.resign()">🏳 认输</button>
+    </div>
+  </div>
+
+  <footer>Master Xiangqi v2.0 — 象棋大师</footer>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-modal" style="display:none;" onclick="if(event.target===this)game.closeSettings()">
+  <div class="modal">
+    <h2>⚙ 游戏设置</h2>
+    <div class="setting-row">
+      <label>AI 难度</label>
+      <select id="setting-difficulty">
+        <option value="1">初级 (Beginner)</option>
+        <option value="2">中级 (Intermediate)</option>
+        <option value="3" selected>高级 (Advanced)</option>
+        <option value="4">大师 (Grandmaster)</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <label>执棋颜色</label>
+      <select id="setting-color">
+        <option value="red" selected>红方 (Red)</option>
+        <option value="black">黑方 (Black)</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <label>AI 思考时间 (秒)</label>
+      <input type="number" id="setting-think" value="3" min="1" max="30" style="width:60px;">
+    </div>
+    <div class="setting-row">
+      <label>音效</label>
+      <select id="setting-sound">
+        <option value="on" selected>开启</option>
+        <option value="off">关闭</option>
+      </select>
+    </div>
+    <div style="margin-top:16px;">
+      <button class="btn primary" onclick="game.applySettings()">应用</button>
+      <button class="btn" onclick="game.closeSettings()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Game Over Modal -->
+<div class="modal-overlay" id="gameover-modal" style="display:none;">
+  <div class="modal">
+    <h2 id="gameover-title">对局结束</h2>
+    <p id="gameover-msg"></p>
+    <div>
+      <button class="btn primary" onclick="game.newGame();game.closeGameover();">再来一局</button>
+      <button class="btn" onclick="game.closeGameover();">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== AUDIO ENGINE =====
+class AudioEngine {
+  constructor() { this.enabled = true; this.ctx = null; }
+
+  ensureCtx() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return this.ctx;
+  }
+
+  play(type) {
+    if (!this.enabled) return;
+    try {
+      const ctx = this.ensureCtx();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      switch(type) {
+        case 'move':
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, now);
+          osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+          osc.start(now); osc.stop(now + 0.1);
+          break;
+        case 'capture':
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(600, now);
+          osc.frequency.exponentialRampToValueAtTime(200, now + 0.15);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.start(now); osc.stop(now + 0.15);
+          break;
+        case 'check':
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(1200, now);
+          osc.frequency.exponentialRampToValueAtTime(600, now + 0.2);
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+          osc.start(now); osc.stop(now + 0.25);
+          break;
+        case 'gameover':
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(523, now);
+          osc.frequency.setValueAtTime(659, now + 0.15);
+          osc.frequency.setValueAtTime(784, now + 0.3);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+          osc.start(now); osc.stop(now + 0.6);
+          break;
+        case 'select':
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(1000, now);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.start(now); osc.stop(now + 0.05);
+          break;
+      }
+    } catch(e) {}
+  }
+}
+
+// ===== CHESS ENGINE =====
+// Board: 9 columns (0-8) x 10 rows (0-9)
+// Red pieces at bottom (rows 5-9), Black pieces at top (rows 0-4)
+// Traditional: Red moves first
+
+const PIECE = {
+  NONE: 0,
+  // Red
+  RED_KING: 1, RED_ADV: 2, RED_ELE: 3, RED_ROOK: 4,
+  RED_HORSE: 5, RED_CANNON: 6, RED_PAWN: 7,
+  // Black
+  BLACK_KING: 8, BLACK_ADV: 9, BLACK_ELE: 10, BLACK_ROOK: 11,
+  BLACK_HORSE: 12, BLACK_CANNON: 13, BLACK_PAWN: 14
+};
+
+const PIECE_NAMES_RED = {
+  [PIECE.RED_KING]: '帥', [PIECE.RED_ADV]: '仕', [PIECE.RED_ELE]: '相',
+  [PIECE.RED_ROOK]: '車', [PIECE.RED_HORSE]: '馬', [PIECE.RED_CANNON]: '炮',
+  [PIECE.RED_PAWN]: '兵'
+};
+
+const PIECE_NAMES_BLACK = {
+  [PIECE.BLACK_KING]: '將', [PIECE.BLACK_ADV]: '士', [PIECE.BLACK_ELE]: '象',
+  [PIECE.BLACK_ROOK]: '車', [PIECE.BLACK_HORSE]: '馬', [PIECE.BLACK_CANNON]: '砲',
+  [PIECE.BLACK_PAWN]: '卒'
+};
+
+function getPieceName(piece) {
+  if (piece >= 1 && piece <= 7) return PIECE_NAMES_RED[piece];
+  if (piece >= 8 && piece <= 14) return PIECE_NAMES_BLACK[piece];
+  return '';
+}
+
+function isRed(piece) { return piece >= 1 && piece <= 7; }
+function isBlack(piece) { return piece >= 8 && piece <= 14; }
+function isFriendly(piece, side) {
+  return side === 'red' ? isRed(piece) : isBlack(piece);
+}
+function isEnemy(piece, side) {
+  return side === 'red' ? isBlack(piece) : isRed(piece);
+}
+
+class Board {
+  constructor() { this.reset(); }
+
+  reset() {
+    this.grid = Array.from({length: 10}, () => Array(9).fill(PIECE.NONE));
+    this.setupPieces();
+    this.currentSide = 'red';
+    this.moveHistory = [];
+    this.repetitionMap = new Map();
+    this.halfMoves = 0;
+  }
+
+  setupPieces() {
+    // Black pieces (top, rows 0-4)
+    const backRow = [
+      PIECE.BLACK_ROOK, PIECE.BLACK_HORSE, PIECE.BLACK_ELE,
+      PIECE.BLACK_ADV, PIECE.BLACK_KING,
+      PIECE.BLACK_ADV, PIECE.BLACK_ELE, PIECE.BLACK_HORSE, PIECE.BLACK_ROOK
+    ];
+    for (let c = 0; c < 9; c++) {
+      this.grid[0][c] = backRow[c];
+    }
+    this.grid[2][1] = PIECE.BLACK_CANNON;
+    this.grid[2][7] = PIECE.BLACK_CANNON;
+    for (let c = 0; c < 9; c += 2) {
+      this.grid[3][c] = PIECE.BLACK_PAWN;
+    }
+
+    // Red pieces (bottom, rows 5-9)
+    for (let c = 0; c < 9; c++) {
+      this.grid[9][c] = backRow[c] - 7; // Red equivalents
+    }
+    this.grid[7][1] = PIECE.RED_CANNON;
+    this.grid[7][7] = PIECE.RED_CANNON;
+    for (let c = 0; c < 9; c += 2) {
+      this.grid[6][c] = PIECE.RED_PAWN;
+    }
+  }
+
+  clone() {
+    const b = new Board();
+    b.grid = this.grid.map(row => [...row]);
+    b.currentSide = this.currentSide;
+    b.moveHistory = [...this.moveHistory];
+    b.repetitionMap = new Map(this.repetitionMap);
+    b.halfMoves = this.halfMoves;
+    return b;
+  }
+
+  get(r, c) {
+    if (r < 0 || r > 9 || c < 0 || c > 8) return -1; // off-board
+    return this.grid[r][c];
+  }
+
+  set(r, c, piece) { this.grid[r][c] = piece; }
+
+  findKing(side) {
+    const king = side === 'red' ? PIECE.RED_KING : PIECE.BLACK_KING;
+    for (let r = 0; r < 10; r++) {
+      for (let c = 0; c < 9; c++) {
+        if (this.grid[r][c] === king) return {r, c};
+      }
+    }
+    return null;
+  }
+
+  // ===== MOVE GENERATION =====
+  getValidMoves(r, c) {
+    const piece = this.grid[r][c];
+    if (!piece) return [];
+    const side = isRed(piece) ? 'red' : 'black';
+    const pseudoMoves = this.getPseudoMoves(r, c, piece, side);
+    // Filter out moves that leave own king in check
+    return pseudoMoves.filter(m => {
+      const saved = this.grid[m.tr][m.tc];
+      this.grid[m.tr][m.tc] = piece;
+      this.grid[r][c] = PIECE.NONE;
+      const inCheck = this.isInCheck(side);
+      this.grid[r][c] = piece;
+      this.grid[m.tr][m.tc] = saved;
+      return !inCheck;
+    });
+  }
+
+  getPseudoMoves(r, c, piece, side) {
+    const moves = [];
+    switch(piece) {
+      case PIECE.RED_KING: case PIECE.BLACK_KING:
+        this._kingMoves(r, c, side, moves); break;
+      case PIECE.RED_ADV: case PIECE.BLACK_ADV:
+        this._advMoves(r, c, side, moves); break;
+      case PIECE.RED_ELE: case PIECE.BLACK_ELE:
+        this._eleMoves(r, c, side, moves); break;
+      case PIECE.RED_ROOK: case PIECE.BLACK_ROOK:
+        this._rookMoves(r, c, side, moves); break;
+      case PIECE.RED_HORSE: case PIECE.BLACK_HORSE:
+        this._horseMoves(r, c, side, moves); break;
+      case PIECE.RED_CANNON: case PIECE.BLACK_CANNON:
+        this._cannonMoves(r, c, side, moves); break;
+      case PIECE.RED_PAWN: case PIECE.BLACK_PAWN:
+        this._pawnMoves(r, c, side, moves); break;
+    }
+    return moves;
+  }
+
+  _kingMoves(r, c, side, moves) {
+    const palaceR = side === 'red' ? [7, 8, 9] : [0, 1, 2];
+    const palaceC = [3, 4, 5];
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= palaceR[0] && nr <= palaceR[2] && nc >= palaceC[0] && nc <= palaceC[2]) {
+        const target = this.get(nr, nc);
+        if (target === PIECE.NONE || isEnemy(target, side)) {
+          moves.push({fr: r, fc: c, tr: nr, tc: nc, capture: target});
+        }
+      }
+    }
+  }
+
+  _advMoves(r, c, side, moves) {
+    const palaceR = side === 'red' ? [7, 8, 9] : [0, 1, 2];
+    const palaceC = [3, 4, 5];
+    const dirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= palaceR[0] && nr <= palaceR[2] && nc >= palaceC[0] && nc <= palaceC[2]) {
+        const target = this.get(nr, nc);
+        if (target === PIECE.NONE || isEnemy(target, side)) {
+          moves.push({fr: r, fc: c, tr: nr, tc: nc, capture: target});
+        }
+      }
+    }
+  }
+
+  _eleMoves(r, c, side, moves) {
+    const riverR = side === 'red' ? 5 : 4;
+    const dirs = [[-2,-2],[-2,2],[2,-2],[2,2]];
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      // Elephant cannot cross river
+      if (side === 'red' && nr < riverR) continue;
+      if (side === 'black' && nr > riverR - 1) continue;
+      // Check eye position
+      const er = r + dr/2, ec = c + dc/2;
+      if (this.get(er, ec) !== PIECE.NONE) continue;
+      const target = this.get(nr, nc);
+      if (target === PIECE.NONE || isEnemy(target, side)) {
+        moves.push({fr: r, fc: c, tr: nr, tc: nc, capture: target});
+      }
+    }
+  }
+
+  _rookMoves(r, c, side, moves) {
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dr, dc] of dirs) {
+      let nr = r + dr, nc = c + dc;
+      while (nr >= 0 && nr <= 9 && nc >= 0 && nc <= 8) {
+        const target = this.get(nr, nc);
+        if (target === PIECE.NONE) {
+          moves.push({fr: r, fc: c, tr: nr, tc: nc, capture: null});
+        } else {
+          if (isEnemy(target, side)) {
+            moves.push({fr: r, fc: c, tr: nr, tc: nc, capture: target});
+          }
+          break;
+        }
+        nr += dr; nc += dc;
+      }
+    }
+  }
+
+  _horseMoves(r, c, side, moves) {
+    // 8 possible moves with hobbling checks
+    const jumps = [
+      {dr: -2, dc: -1, hr: -1, hc: 0},
+      {dr: -2, dc: 1,  hr: -1, hc: 0},
+      {dr: 2, dc: -1,  hr: 1,  hc: 0},
+      {dr: 2, dc: 1,   hr: 1,  hc: 0},
+      {dr: -1, dc: -2, hr: 0,  hc: -1},
+      {dr: 1, dc: -2,  hr: 0,  hc: -1},
+      {dr: -1, dc: 2,  hr: 0,  hc: 1},
+      {dr: 1, dc: 2,   hr: 0,  hc: 1}
+    ];
+    for (const j of jumps) {
+      const nr = r + j.dr, nc = c + j.dc;
+      const hr = r + j.hr, hc = c + j.hc;
+      if (nr < 0 || nr > 9 || nc < 0 || nc > 8) continue;
+      if (this.get(hr, hc) !== PIECE.NONE) continue; // hobble
+      const target = this.get(nr, nc);
+      if (target === PIECE.NONE || isEnemy(target, side)) {
+        moves.push({fr: r, fc: c, tr: nr, tc: nc, capture: target});
+      }
+    }
+  }
+
+  _cannonMoves(r, c, side, moves) {
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dr, dc] of dirs) {
+      let nr = r + dr, nc = c + dc;
+      let jumped = false;
+      while (nr >= 0 && nr <= 9 && nc >= 0 && nc <= 8) {
+        const target = this.get(nr, nc);
+        if (!jumped) {
+          if (target === PIECE.NONE) {
+            moves.push({fr: r, fc: c, tr: nr, tc: nc, capture: null});
+          } else {
+            jumped = true;
+          }
+        } else {
+          if (target !== PIECE.NONE) {
+            if (isEnemy(target, side)) {
+              moves.push({fr: r, fc: c, tr: nr, tc: nc, capture: target});
+            }
+            break;
+          }
+        }
+        nr += dr; nc += dc;
+      }
+    }
+  }
+
+  _pawnMoves(r, c, side, moves) {
+    const forward = side === 'red' ? -1 : 1;
+    const crossed = side === 'red' ? r <= 4 : r >= 5;
+    // Forward
+    const nr = r + forward;
+    if (nr >= 0 && nr <= 9) {
+      const target = this.get(nr, c);
+      if (target === PIECE.NONE || isEnemy(target, side)) {
+        moves.push({fr: r, fc: c, tr: nr, tc: c, capture: target});
+      }
+    }
+    // Sideways if crossed river
+    if (crossed) {
+      for (const dc of [-1, 1]) {
+        const nc = c + dc;
+        if (nc >= 0 && nc <= 8) {
+          const target = this.get(r, nc);
+          if (target === PIECE.NONE || isEnemy(target, side)) {
+            moves.push({fr: r, fc: c, tr: r, tc: nc, capture: target});
+          }
+        }
+      }
+    }
+  }
+
+  // ===== CHECK / CHECKMATE =====
+  isInCheck(side) {
+    const kingPos = this.findKing(side);
+    if (!kingPos) return false;
+    const enemy = side === 'red' ? 'black' : 'red';
+    // Check if any enemy piece can attack the king
+    for (let r = 0; r < 10; r++) {
+      for (let c = 0; c < 9; c++) {
+        const p = this.grid[r][c];
+        if (p && isFriendly(p, enemy)) {
+          const moves = this.getPseudoMoves(r, c, p, enemy);
+          if (moves.some(m => m.tr === kingPos.r && m.tc === kingPos.c)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  hasLegalMoves(side) {
+    for (let r = 0; r < 10; r++) {
+      for (let c = 0; c < 9; c++) {
+        const p = this.grid[r][c];
+        if (p && isFriendly(p, side)) {
+          if (this.getValidMoves(r, c).length > 0) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Flying general rule: kings cannot face each other on same file with no pieces between
+  flyingGeneral() {
+    const redKing = this.findKing('red');
+    const blackKing = this.findKing('black');
+    if (!redKing || !blackKing) return false;
+    if (redKing.c !== blackKing.c) return false;
+    const col = redKing.c;
+    const minR = Math.min(redKing.r, blackKing.r);
+    const maxR = Math.max(redKing.r, blackKing.r);
+    for (let r = minR + 1; r < maxR; r++) {
+      if (this.grid[r][col] !== PIECE.NONE) return false;
+    }
+    return true;
+  }
+
+  makeMove(move) {
+    const piece = this.grid[move.fr][move.fc];
+    const captured = this.grid[move.tr][move.tc];
+    this.grid[move.tr][move.tc] = piece;
+    this.grid[move.fr][move.fc] = PIECE.NONE;
+    this.currentSide = this.currentSide === 'red' ? 'black' : 'red';
+
+    const moveRecord = {
+      ...move,
+      piece: piece,
+      captured: captured,
+      side: this.currentSide === 'red' ? 'black' : 'red' // side that moved
+    };
+
+    // Flying general check - invalidate
+    if (this.flyingGeneral()) {
+      // Undo and mark as illegal
+      this.grid[move.fr][move.fc] = piece;
+      this.grid[move.tr][move.tc] = captured;
+      return null;
+    }
+
+    this.moveHistory.push(moveRecord);
+
+    // Reposition detection (threefold repetition simplified)
+    const key = this.getPositionKey();
+    this.repetitionMap.set(key, (this.repetitionMap.get(key) || 0) + 1);
+
+    // Half-move clock for draw rules
+    if (piece === PIECE.RED_PAWN || piece === PIECE.BLACK_PAWN || captured !== PIECE.NONE) {
+      this.halfMoves = 0;
+    } else {
+      this.halfMoves++;
+    }
+
+    return moveRecord;
+  }
+
+  undoLastMove() {
+    if (this.moveHistory.length === 0) return null;
+    const move = this.moveHistory.pop();
+    this.grid[move.fr][move.fc] = move.piece;
+    this.grid[move.tr][move.tc] = move.captured;
+    this.currentSide = move.side === 'red' ? 'black' : 'red';
+
+    const key = this.getPositionKey();
+    const count = this.repetitionMap.get(key) || 1;
+    if (count <= 1) this.repetitionMap.delete(key);
+    else this.repetitionMap.set(key, count - 1);
+
+    return move;
+  }
+
+  getPositionKey() {
+    return this.grid.map(row => row.join(',')).join('|') + '|' + this.currentSide;
+  }
+
+  // ===== AI EVALUATION =====
+  evaluate() {
+    const pieceValues = {
+      [PIECE.RED_KING]: 10000, [PIECE.BLACK_KING]: 10000,
+      [PIECE.RED_ROOK]: 900, [PIECE.BLACK_ROOK]: 900,
+      [PIECE.RED_CANNON]: 450, [PIECE.BLACK_CANNON]: 450,
+      [PIECE.RED_HORSE]: 400, [PIECE.BLACK_HORSE]: 400,
+      [PIECE.RED_ELE]: 200, [PIECE.BLACK_ELE]: 200,
+      [PIECE.RED_ADV]: 200, [PIECE.BLACK_ADV]: 200,
+      [PIECE.RED_PAWN]: 100, [PIECE.BLACK_PAWN]: 100
+    };
+
+    // Positional bonuses
+    let score = 0;
+    for (let r = 0; r < 10; r++) {
+      for (let c = 0; c < 9; c++) {
+        const p = this.grid[r][c];
+        if (p === PIECE.NONE) continue;
+        let val = pieceValues[p] || 0;
+
+        // Pawn advancement bonus
+        if (p === PIECE.RED_PAWN && r < 5) val += (5 - r) * 30;
+        if (p === PIECE.BLACK_PAWN && r > 4) val += (r - 4) * 30;
+
+        // Center control bonus for pawns
+        if ((p === PIECE.RED_PAWN || p === PIECE.BLACK_PAWN) && c >= 3 && c <= 5) {
+          val += 20;
+        }
+
+        // King safety - bonus for being closer to center of palace
+        if (p === PIECE.RED_KING) {
+          val += (4 - Math.abs(r - 8)) * 10;
+          val += (4 - Math.abs(c - 4)) * 10;
+        }
+        if (p === PIECE.BLACK_KING) {
+          val += (4 - Math.abs(r - 1)) * 10;
+          val += (4 - Math.abs(c - 4)) * 10;
+        }
+
+        if (isRed(p)) score -= val;
+        else score += val;
+      }
+    }
+    return score;
+  }
+}
+
+// ===== AI ENGINE =====
+class AI {
+  constructor(difficulty = 3, thinkTime = 3) {
+    this.depth = difficulty;
+    this.thinkTime = thinkTime;
+    this.nodesSearched = 0;
+    this.cancelled = false;
+  }
+
+  findBestMove(board) {
+    this.nodesSearched = 0;
+    this.cancelled = false;
+    const start = Date.now();
+    const side = board.currentSide;
+    const moves = this.getAllMoves(board, side);
+
+    if (moves.length === 0) return null;
+
+    // Sort moves for better alpha-beta (captures first, then by captured value)
+    moves.sort((a, b) => {
+      const va = (a.capture ? this._captureValue(a.capture) : 0);
+      const vb = (b.capture ? this._captureValue(b.capture) : 0);
+      return vb - va;
+    });
+
+    let bestMove = moves[0];
+    let bestScore = -Infinity;
+
+    for (const move of moves) {
+      if (this.cancelled || (Date.now() - start > this.thinkTime * 1000)) break;
+
+      const savedGrid = board.grid.map(row => [...row]);
+      board.grid[move.tr][move.tc] = board.grid[move.fr][move.fc];
+      board.grid[move.fr][move.fc] = PIECE.NONE;
+
+      const score = this._minimax(board, this.depth - 1, -Infinity, Infinity, false, side);
+
+      // Restore
+      board.grid = savedGrid;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = move;
+      }
+    }
+
+    return bestMove;
+  }
+
+  _minimax(board, depth, alpha, beta, maximizing, originalSide) {
+    this.nodesSearched++;
+
+    if (depth <= 0) {
+      return this._quiesce(board, alpha, beta, maximizing, originalSide, 3);
+    }
+
+    const side = board.currentSide;
+    const moves = this.getAllMoves(board, side);
+
+    if (moves.length === 0) {
+      // Checkmate or stalemate
+      if (board.isInCheck(side)) {
+        return maximizing ? -100000 + (this.depth - depth) : 100000 - (this.depth - depth);
+      }
+      return 0; // Stalemate
+    }
+
+    // Sort moves
+    moves.sort((a, b) => {
+      const va = (a.capture ? this._captureValue(a.capture) : 0);
+      const vb = (b.capture ? this._captureValue(b.capture) : 0);
+      return vb - va;
+    });
+
+    if (maximizing) {
+      let maxEval = -Infinity;
+      for (const move of moves) {
+        const savedGrid = board.grid.map(row => [...row]);
+        board.grid[move.tr][move.tc] = board.grid[move.fr][move.fc];
+        board.grid[move.fr][move.fc] = PIECE.NONE;
+
+        const eval_ = this._minimax(board, depth - 1, alpha, beta, false, originalSide);
+
+        board.grid = savedGrid;
+        maxEval = Math.max(maxEval, eval_);
+        alpha = Math.max(alpha, eval_);
+        if (beta <= alpha) break;
+      }
+      return maxEval;
+    } else {
+      let minEval = Infinity;
+      for (const move of moves) {
+        const savedGrid = board.grid.map(row => [...row]);
+        board.grid[move.tr][move.tc] = board.grid[move.fr][move.fc];
+        board.grid[move.fr][move.fc] = PIECE.NONE;
+
+        const eval_ = this._minimax(board, depth - 1, alpha, beta, true, originalSide);
+
+        board.grid = savedGrid;
+        minEval = Math.min(minEval, eval_);
+        beta = Math.min(beta, eval_);
+        if (beta <= alpha) break;
+      }
+      return minEval;
+    }
+  }
+
+  _quiesce(board, alpha, beta, maximizing, originalSide, depth) {
+    const standPat = board.evaluate();
+
+    if (depth <= 0) return standPat;
+
+    if (maximizing) {
+      if (standPat >= beta) return beta;
+      if (alpha < standPat) alpha = standPat;
+
+      const side = board.currentSide;
+      const moves = this.getAllMoves(board, side).filter(m => m.capture !== PIECE.NONE);
+      moves.sort((a, b) => this._captureValue(b.capture) - this._captureValue(a.capture));
+
+      for (const move of moves) {
+        const savedGrid = board.grid.map(row => [...row]);
+        board.grid[move.tr][move.tc] = board.grid[move.fr][move.fc];
+        board.grid[move.fr][move.fc] = PIECE.NONE;
+
+        const score = this._quiesce(board, alpha, beta, false, originalSide, depth - 1);
+
+        board.grid = savedGrid;
+        if (score >= beta) return beta;
+        if (score > alpha) alpha = score;
+      }
+      return alpha;
+    } else {
+      if (standPat <= alpha) return alpha;
+      if (beta > standPat) beta = standPat;
+
+      const side = board.currentSide;
+      const moves = this.getAllMoves(board, side).filter(m => m.capture !== PIECE.NONE);
+      moves.sort((a, b) => this._captureValue(b.capture) - this._captureValue(a.capture));
+
+      for (const move of moves) {
+        const savedGrid = board.grid.map(row => [...row]);
+        board.grid[move.tr][move.tc] = board.grid[move.fr][move.fc];
+        board.grid[move.fr][move.fc] = PIECE.NONE;
+
+        const score = this._quiesce(board, alpha, beta, true, originalSide, depth - 1);
+
+        board.grid = savedGrid;
+        if (score <= alpha) return alpha;
+        if (score < beta) beta = score;
+      }
+      return beta;
+    }
+  }
+
+  getAllMoves(board, side) {
+    const moves = [];
+    for (let r = 0; r < 10; r++) {
+      for (let c = 0; c < 9; c++) {
+        const p = board.grid[r][c];
+        if (p && isFriendly(p, side)) {
+          const validMoves = board.getValidMoves(r, c);
+          moves.push(...validMoves);
+        }
+      }
+    }
+    return moves;
+  }
+
+  _captureValue(piece) {
+    const vals = {
+      [PIECE.RED_KING]: 10000, [PIECE.BLACK_KING]: 10000,
+      [PIECE.RED_ROOK]: 900, [PIECE.BLACK_ROOK]: 900,
+      [PIECE.RED_CANNON]: 450, [PIECE.BLACK_CANNON]: 450,
+      [PIECE.RED_HORSE]: 400, [PIECE.BLACK_HORSE]: 400,
+      [PIECE.RED_ELE]: 200, [PIECE.BLACK_ELE]: 200,
+      [PIECE.RED_ADV]: 200, [PIECE.BLACK_ADV]: 200,
+      [PIECE.RED_PAWN]: 100, [PIECE.BLACK_PAWN]: 100
+    };
+    return vals[piece] || 0;
+  }
+}
+
+// ===== UI CONTROLLER =====
+class GameUI {
+  constructor() {
+    this.board = new Board();
+    this.audio = new AudioEngine();
+    this.ai = new AI(3, 3);
+    this.selectedPiece = null;
+    this.validMoves = [];
+    this.playerSide = 'red';
+    this.flipped = false;
+    this.gameOver = false;
+    this.aiThinking = false;
+    this.lastMove = null;
+    this.soundEnabled = true;
+    this.timerSeconds = 0;
+    this.timerInterval = null;
+    this.historyText = '';
+
+    this.piecesLayer = document.getElementById('pieces-layer');
+    this.clickLayer = document.getElementById('click-layer');
+    this.gridGroup = document.getElementById('grid-lines');
+    this.riverText = document.getElementById('river-text');
+
+    this._drawBoard();
+    this._renderPieces();
+    this._setupClickLayer();
+    this._updateStatus();
+    this._startTimer();
+
+    // Show side panel on desktop
+    if (window.innerWidth >= 1024) {
+      document.getElementById('side-panel').style.display = 'flex';
+    }
+  }
+
+  // ===== BOARD DRAWING =====
+  _drawBoard() {
+    const svg = this.gridGroup;
+    svg.innerHTML = '';
+
+    // Horizontal lines (10 rows)
+    for (let r = 0; r < 10; r++) {
+      const line = this._svgLine(0.5, r + 0.5, 8.5, r + 0.5);
+      svg.appendChild(line);
+    }
+
+    // Vertical lines
+    for (let c = 0; c < 9; c++) {
+      if (c === 0 || c === 8) {
+        // Outer columns span full height
+        svg.appendChild(this._svgLine(c + 0.5, 0.5, c + 0.5, 9.5));
+      } else {
+        // Inner columns split at river
+        svg.appendChild(this._svgLine(c + 0.5, 0.5, c + 0.5, 4.5));
+        svg.appendChild(this._svgLine(c + 0.5, 5.5, c + 0.5, 9.5));
+      }
+    }
+
+    // Palace diagonals
+    // Black palace (top)
+    svg.appendChild(this._svgLine(3.5, 0.5, 5.5, 2.5));
+    svg.appendChild(this._svgLine(5.5, 0.5, 3.5, 2.5));
+    // Red palace (bottom)
+    svg.appendChild(this._svgLine(3.5, 7.5, 5.5, 9.5));
+    svg.appendChild(this._svgLine(5.5, 7.5, 3.5, 9.5));
+
+    // River text
+    this.riverText.textContent = '楚 河    漢 界';
+
+    // Position markers (small crosses at pawn and cannon positions)
+    const markers = [
+      [2,1],[2,7],[3,0],[3,2],[3,4],[3,6],[3,8],
+      [7,1],[7,7],[6,0],[6,2],[6,4],[6,6],[6,8]
+    ];
+    const ms = 0.06; // marker size
+    const ml = 0.03; // line length
+    for (const [mr, mc] of markers) {
+      const cx = mc + 0.5, cy = mr + 0.5;
+      // Draw 4 directional marks (offset lines) for each marker position
+      // Top-left corner mark
+      svg.appendChild(this._svgLine(cx - ms, cy - ms, cx - ms, cy - ms + ml * 2));
+      svg.appendChild(this._svgLine(cx - ms, cy - ms, cx - ms + ml * 2, cy - ms));
+      // Top-right corner mark
+      svg.appendChild(this._svgLine(cx + ms, cy - ms, cx + ms, cy - ms + ml * 2));
+      svg.appendChild(this._svgLine(cx + ms - ml * 2, cy - ms, cx + ms, cy - ms));
+      // Bottom-left corner mark
+      svg.appendChild(this._svgLine(cx - ms, cy + ms, cx - ms, cy + ms - ml * 2));
+      svg.appendChild(this._svgLine(cx - ms, cy + ms - ml * 2, cx - ms + ml * 2, cy + ms));
+      // Bottom-right corner mark
+      svg.appendChild(this._svgLine(cx + ms, cy + ms, cx + ms, cy + ms - ml * 2));
+      svg.appendChild(this._svgLine(cx + ms - ml * 2, cy + ms, cx + ms, cy + ms));
+    }
+  }
+
+  _svgLine(x1, y1, x2, y2) {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    return line;
+  }
+
+  // ===== PIECE RENDERING =====
+  _renderPieces() {
+    this.piecesLayer.innerHTML = '';
+
+    for (let r = 0; r < 10; r++) {
+      for (let c = 0; c < 9; c++) {
+        const piece = this.board.grid[r][c];
+        if (piece === PIECE.NONE) continue;
+
+        const el = document.createElement('div');
+        el.className = 'piece ' + (isRed(piece) ? 'red' : 'black');
+        el.textContent = getPieceName(piece);
+
+        const pos = this._toPixel(r, c);
+        el.style.left = pos.x + 'px';
+        el.style.top = pos.y + 'px';
+        el.style.width = (this._getPieceSize()) + 'px';
+        el.style.height = (this._getPieceSize()) + 'px';
+        el.style.fontSize = (this._getPieceSize() * 0.58) + 'px';
+
+        el.dataset.r = r;
+        el.dataset.c = c;
+
+        // Highlight selected piece
+        if (this.selectedPiece && this.selectedPiece.r === r && this.selectedPiece.c === c) {
+          el.classList.add('selected');
+        }
+
+        // Highlight last move
+        if (this.lastMove) {
+          if ((r === this.lastMove.fr && c === this.lastMove.fc) ||
+              (r === this.lastMove.tr && c === this.lastMove.tc)) {
+            el.classList.add('last-move');
+          }
+        }
+
+        // Check highlight
+        if (this.board.isInCheck(isRed(piece) ? 'red' : 'black')) {
+          const king = this.board.findKing(isRed(piece) ? 'red' : 'black');
+          if (king && king.r === r && king.c === c) {
+            el.classList.add('in-check');
+          }
+        }
+
+        this.piecesLayer.appendChild(el);
+      }
+    }
+  }
+
+  _getPieceSize() {
+    const boardSize = this._getBoardSize();
+    return (boardSize / 9) * 0.72;
+  }
+
+  _getBoardSize() {
+    return this.clickLayer.clientWidth;
+  }
+
+  _toPixel(r, c) {
+    const boardSize = this._getBoardSize();
+    const boardHeight = boardSize * 10 / 9;
+    // SVG viewBox is 0 0 9 10, grid lines at 0.5, 1.5, ... 8.5 / 9.5
+    const x = (c + 0.5) / 9 * boardSize;
+    const y = (r + 0.5) / 10 * boardHeight;
+    return {x, y};
+  }
+
+  _fromPixel(px, py) {
+    const boardSize = this._getBoardSize();
+    const boardHeight = boardSize * 10 / 9;
+    const c = Math.round((px / boardSize) * 9 - 0.5);
+    const r = Math.round((py / boardHeight) * 10 - 0.5);
+    return {r, c};
+  }
+
+  // ===== CLICK HANDLING =====
+  _setupClickLayer() {
+    let startX, startY;
+    let touchStartTime = 0;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const touchThreshold = isMobile ? 10 : 5; // More lenient for touch
+
+    this.clickLayer.addEventListener('pointerdown', (e) => {
+      const rect = this.clickLayer.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      touchStartTime = Date.now();
+    });
+
+    this.clickLayer.addEventListener('pointerup', (e) => {
+      const rect = this.clickLayer.getBoundingClientRect();
+      const endX = e.clientX - rect.left;
+      const endY = e.clientY - rect.top;
+
+      // Only process clicks (not drags)
+      if (Math.abs(endX - startX) > touchThreshold || Math.abs(endY - startY) > touchThreshold) return;
+
+      const {r, c} = this._fromPixel(endX, endY);
+      if (r < 0 || r > 9 || c < 0 || c > 8) return;
+
+      this._handleClick(r, c);
+    });
+
+    // Touch support - optimized for mobile
+    let touchStartY = 0;
+    this.clickLayer.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const rect = this.clickLayer.getBoundingClientRect();
+        startX = touch.clientX - rect.left;
+        startY = touch.clientY - rect.top;
+        touchStartY = touch.clientY;
+        touchStartTime = Date.now();
+        e.preventDefault();
+      }
+    }, {passive: false});
+
+    this.clickLayer.addEventListener('touchmove', (e) => {
+      // Prevent scrolling while touching the board
+      if (e.touches.length === 1) {
+        e.preventDefault();
+      }
+    }, {passive: false});
+
+    this.clickLayer.addEventListener('touchend', (e) => {
+      if (e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0];
+        const rect = this.clickLayer.getBoundingClientRect();
+        const endX = touch.clientX - rect.left;
+        const endY = touch.clientY - rect.top;
+        
+        // Check if it was a tap (not a drag)
+        const dx = Math.abs(endX - startX);
+        const dy = Math.abs(endY - startY);
+        const timeDiff = Date.now() - touchStartTime;
+        
+        // Only process taps within threshold and time
+        if (dx > touchThreshold || dy > touchThreshold || timeDiff > 500) return;
+
+        const {r, c} = this._fromPixel(endX, endY);
+        if (r >= 0 && r <= 9 && c >= 0 && c <= 8) {
+          e.preventDefault();
+          this._handleClick(r, c);
+          
+          // Haptic feedback on supported devices
+          if (isMobile && navigator.vibrate) {
+            navigator.vibrate(10); // Subtle vibration
+          }
+        }
+      }
+    }, {passive: false});
+  }
+
+  _handleClick(r, c) {
+    if (this.gameOver || this.aiThinking) return;
+
+    // If AI's turn, ignore clicks
+    if (this.board.currentSide !== this.playerSide) return;
+
+    const piece = this.board.grid[r][c];
+
+    // If we have a selected piece, try to move
+    if (this.selectedPiece) {
+      const move = this.validMoves.find(m => m.tr === r && m.tc === c);
+      if (move) {
+        this._executePlayerMove(move);
+        return;
+      }
+    }
+
+    // Select a new piece
+    if (piece && isFriendly(piece, this.playerSide)) {
+      this._selectPiece(r, c);
+    } else {
+      this._deselect();
+    }
+  }
+
+  _selectPiece(r, c) {
+    this.selectedPiece = {r, c};
+    this.validMoves = this.board.getValidMoves(r, c);
+    this._renderPieces();
+    this._showMoveHints();
+    this.audio.play('select');
+  }
+
+  _deselect() {
+    this.selectedPiece = null;
+    this.validMoves = [];
+    this._renderPieces();
+    this._clearHints();
+  }
+
+  _showMoveHints() {
+    this._clearHints();
+    for (const move of this.validMoves) {
+      const pos = this._toPixel(move.tr, move.tc);
+      const hint = document.createElement('div');
+
+      if (move.capture !== PIECE.NONE) {
+        hint.className = 'capture-hint';
+      } else {
+        hint.className = 'move-hint';
+      }
+
+      hint.style.left = pos.x + 'px';
+      hint.style.top = pos.y + 'px';
+      this.clickLayer.appendChild(hint);
+    }
+  }
+
+  _clearHints() {
+    this.clickLayer.querySelectorAll('.move-hint, .capture-hint').forEach(el => el.remove());
+  }
+
+  // ===== MOVE EXECUTION =====
+  _executePlayerMove(move) {
+    const record = this.board.makeMove(move);
+    if (!record) return; // Flying general - invalid
+
+    this.lastMove = record;
+    this._deselect();
+    this._addHistoryRecord(record);
+
+    const pieceName = getPieceName(record.piece);
+    const capturedName = record.capture ? getPieceName(record.capture) : '';
+    const captured = record.capture !== PIECE.NONE;
+
+    // Animate piece placement
+    setTimeout(() => {
+      this._renderPieces();
+      const pieces = this.piecesLayer.querySelectorAll('.piece');
+      const targetPos = this._toPixel(record.tr, record.tc);
+      pieces.forEach(p => {
+        const pr = parseInt(p.dataset.r);
+        const pc = parseInt(p.dataset.c);
+        if (pr === record.tr && pc === record.tc) {
+          p.classList.add('just-placed');
+        }
+      });
+    }, 50);
+
+    if (captured) this.audio.play('capture');
+    else this.audio.play('move');
+
+    // Check detection
+    const enemySide = this.board.currentSide;
+    if (this.board.isInCheck(enemySide)) {
+      this.audio.play('check');
+    }
+
+    this._updateStatus();
+
+    // Check game end
+    if (!this.board.hasLegalMoves(enemySide)) {
+      this._endGame(this.board.isInCheck(enemySide) ? 'checkmate' : 'stalemate');
+      return;
+    }
+
+    // AI turn
+    if (this.board.currentSide !== this.playerSide) {
+      this._makeAIMove();
+    }
+  }
+
+  _makeAIMove() {
+    this.aiThinking = true;
+    // Update UI to show thinking
+    document.getElementById('turn-text').textContent = 'AI 思考中...';
+
+    setTimeout(() => {
+      const move = this.ai.findBestMove(this.board);
+      this.aiThinking = false;
+
+      if (!move) return;
+
+      const record = this.board.makeMove(move);
+      if (!record) return;
+
+      this.lastMove = record;
+      this._addHistoryRecord(record);
+
+      const captured = record.capture !== PIECE.NONE;
+      if (captured) this.audio.play('capture');
+      else this.audio.play('move');
+
+      if (this.board.isInCheck(this.board.currentSide)) {
+        this.audio.play('check');
+      }
+
+      this._renderPieces();
+      this._updateStatus();
+
+      // Check game end
+      if (!this.board.hasLegalMoves(this.board.currentSide)) {
+        this._endGame(this.board.isInCheck(this.board.currentSide) ? 'checkmate' : 'stalemate');
+      }
+    }, 100);
+  }
+
+  // ===== HISTORY =====
+  _addHistoryRecord(record) {
+    const moveNum = Math.floor(this.board.moveHistory.length / 2) + 1;
+    const side = record.side === 'red' ? '红' : '黑';
+    const pieceName = getPieceName(record.piece);
+    const fromCol = record.fc;
+    const toCol = record.tc;
+    const forward = isRed(record.piece) ? -1 : 1;
+    const fromRow = isRed(record.piece) ? 9 - record.fr : record.fr;
+    const toRow = isRed(record.piece) ? 9 - record.tr : record.tr;
+    const dir = record.fc === record.tc ? '平' : (record.tr < record.fr ? '进' : '退');
+    const capture = record.capture !== PIECE.NONE ? '吃' : '';
+
+    const entry = `${moveNum}.${side}${pieceName}${fromCol}路${dir}${toRow}${capture}`;
+
+    this.historyText += entry + '  ';
+    document.getElementById('history-panel').textContent = this.historyText;
+
+    const panel = document.getElementById('history-panel');
+    panel.scrollTop = panel.scrollHeight;
+  }
+
+  // ===== STATUS =====
+  _updateStatus() {
+    const indicator = document.getElementById('turn-indicator');
+    const text = document.getElementById('turn-text');
+
+    if (this.board.currentSide === 'red') {
+      indicator.className = 'red-turn';
+      text.textContent = this.playerSide === 'red' ? '你的回合 (红方)' : 'AI 思考中 (黑方)';
+    } else {
+      indicator.className = 'black-turn';
+      text.textContent = this.playerSide === 'black' ? '你的回合 (黑方)' : 'AI 思考中 (红方)';
+    }
+  }
+
+  // ===== TIMER =====
+  _startTimer() {
+    this.timerSeconds = 0;
+    if (this.timerInterval) clearInterval(this.timerInterval);
+    this.timerInterval = setInterval(() => {
+      if (this.gameOver) return;
+      this.timerSeconds++;
+      const m = Math.floor(this.timerSeconds / 60).toString().padStart(2, '0');
+      const s = (this.timerSeconds % 60).toString().padStart(2, '0');
+      document.getElementById('timer').textContent = m + ':' + s;
+    }, 1000);
+  }
+
+  // ===== GAME END =====
+  _endGame(reason) {
+    this.gameOver = true;
+    clearInterval(this.timerInterval);
+    this.audio.play('gameover');
+
+    const title = document.getElementById('gameover-title');
+    const msg = document.getElementById('gameover-msg');
+
+    if (reason === 'checkmate') {
+      const winner = this.board.currentSide === 'red' ? '黑方' : '红方';
+      const winnerLabel = this.playerSide === 'red' ? '你赢了！' : 'AI 获胜！';
+      title.textContent = '将杀！';
+      msg.textContent = `${winnerLabel} (${winner}胜)`;
+    } else if (reason === 'stalemate') {
+      title.textContent = '和局';
+      msg.textContent = '无子可走，判和';
+    } else if (reason === 'resign') {
+      const winner = this.board.currentSide === 'red' ? '红方' : '黑方';
+      msg.textContent = `${this.playerSide === 'red' ? '你' : 'AI'} 认输，${winner}获胜`;
+    }
+
+    document.getElementById('gameover-modal').style.display = 'flex';
+  }
+
+  // ===== CONTROLS =====
+  undo() {
+    if (this.gameOver || this.aiThinking || this.board.moveHistory.length < 2) return;
+
+    // Undo both AI and player moves
+    this.board.undoLastMove();
+    this.historyText = this.historyText.trimEnd().slice(0, -1);
+    const lastChar = this.historyText[this.historyText.length - 1];
+    if (lastChar && '0123456789.'.includes(lastChar)) {
+      // Remove the last move entry
+      const lastSpace = this.historyText.lastIndexOf(' ');
+      if (lastSpace >= 0) this.historyText = this.historyText.substring(0, lastSpace);
+    }
+    document.getElementById('history-panel').textContent = this.historyText;
+
+    this.board.undoLastMove();
+    const lastSpace = this.historyText.lastIndexOf(' ');
+    if (lastSpace >= 0) this.historyText = this.historyText.substring(0, lastSpace);
+    document.getElementById('history-panel').textContent = this.historyText;
+
+    this.lastMove = this.board.moveHistory.length > 0 ? this.board.moveHistory[this.board.moveHistory.length - 1] : null;
+    this._deselect();
+    this._renderPieces();
+    this._updateStatus();
+  }
+
+  flipBoard() {
+    this.flipped = !this.flipped;
+    const container = document.getElementById('board-container');
+    container.style.transform = this.flipped ? 'rotate(180deg)' : '';
+    this.piecesLayer.style.transform = this.flipped ? 'rotate(180deg)' : '';
+    this.clickLayer.style.transform = this.flipped ? 'rotate(180deg)' : '';
+  }
+
+  newGame() {
+    this.board.reset();
+    this.selectedPiece = null;
+    this.validMoves = [];
+    this.lastMove = null;
+    this.gameOver = false;
+    this.aiThinking = false;
+    this.historyText = '';
+    document.getElementById('history-panel').textContent = '';
+    document.getElementById('gameover-modal').style.display = 'none';
+
+    this._renderPieces();
+    this._updateStatus();
+    this._startTimer();
+
+    // If AI plays red, AI goes first
+    if (this.playerSide === 'black') {
+      setTimeout(() => this._makeAIMove(), 500);
+    }
+  }
+
+  resign() {
+    if (this.gameOver) return;
+    this._endGame('resign');
+  }
+
+  toggleSound() {
+    this.soundEnabled = !this.soundEnabled;
+    this.audio.enabled = this.soundEnabled;
+    document.getElementById('btn-sound').textContent = this.soundEnabled ? '🔊' : '🔇';
+  }
+
+  showSettings() {
+    document.getElementById('settings-modal').style.display = 'flex';
+  }
+
+  closeSettings() {
+    document.getElementById('settings-modal').style.display = 'none';
+  }
+
+  applySettings() {
+    const diff = parseInt(document.getElementById('setting-difficulty').value);
+    const color = document.getElementById('setting-color').value;
+    const think = parseInt(document.getElementById('setting-think').value);
+    const sound = document.getElementById('setting-sound').value;
+
+    this.ai = new AI(diff, think);
+    this.playerSide = color;
+    this.soundEnabled = sound === 'on';
+    this.audio.enabled = this.soundEnabled;
+    document.getElementById('btn-sound').textContent = this.soundEnabled ? '🔊' : '🔇';
+
+    this.closeSettings();
+    this.newGame();
+  }
+
+  closeGameover() {
+    document.getElementById('gameover-modal').style.display = 'none';
+  }
+}
+
+// ===== INITIALIZATION =====
+let game;
+window.addEventListener('DOMContentLoaded', () => {
+  game = new GameUI();
+});
+
+// Handle resize with debounce
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    if (game) {
+      game._renderPieces();
+      game._clearHints();
+    }
+  }, 100);
+});
+
+// Mobile enhancements
+(function() {
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (!isMobile) return;
+  
+  // Prevent double-tap zoom
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      e.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, {passive: false});
+  
+  // Prevent pull-to-refresh
+  document.addEventListener('touchmove', (e) => {
+    if (e.target === document.body || e.target === document.documentElement) {
+      e.preventDefault();
+    }
+  }, {passive: false});
+  
+  // Request fullscreen on first interaction
+  let hasInteracted = false;
+  const requestFullscreen = () => {
+    if (hasInteracted) return;
+    hasInteracted = true;
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+      elem.requestFullscreen().catch(() => {});
+    } else if (elem.webkitRequestFullscreen) {
+      elem.webkitRequestFullscreen().catch(() => {});
+    }
+  };
+  
+  document.addEventListener('click', requestFullscreen, {once: true});
+  document.addEventListener('touchstart', requestFullscreen, {once: true});
+})();
+</script>
+</body>
+</html>
