@@ -105,14 +105,35 @@ This is a static single-page application — deploy anywhere:
 2. Tap the **menu** (⋮)
 3. Select **"Add to Home Screen"** or **"Install App"**
 
+## Offline Play (PWA)
+
+This game is a **Progressive Web App** — install it and play without internet.
+
+### What PWA features are included:
+- **Installable** — "Add to Home Screen" prompt on both iOS and Android
+- **Offline playable** — Service Worker caches all assets for offline access
+- **Fullscreen** — Launches without browser UI for immersive play
+- **App-like** — Custom title, icon, and splash screen
+
+### How to use offline:
+1. **First visit**: Open the game while online (once to cache everything)
+2. **Install**: Use "Add to Home Screen" from your browser menu
+3. **Play offline**: Launch from home screen — works without internet
+
+> **Note**: The first visit caches the game (~56KB). After that, all future visits work offline, even on airplane mode.
+
+### Clear Cache (Settings)
+Open the Settings panel (⚙) and tap **🗑 Clear Cache** to remove cached data and force a refresh.
+
 ## Technical Details
 
+- **PWA-ready**: Web App Manifest + Service Worker for offline support
 - **Single-file application**: Zero dependencies, no build step
-- **Pure HTML/CSS/JavaScript**: Works offline
+- **Pure HTML/CSS/JavaScript**: Works offline after first visit
 - **Responsive**: Adapts from mobile (320px) to 4K displays
 - **Web Audio API**: Synthesized sound effects (no audio files needed)
 - **SVG rendering**: Crisp board at any resolution
-- **~56KB total**: Lightning fast loading
+- **~60KB total**: Lightning fast loading
 
 ## Browser Support
 
@@ -126,7 +147,9 @@ This is a static single-page application — deploy anywhere:
 | File | Description |
 |------|-------------|
 | `index.html` | The complete game (1800+ lines) |
-| `favicon.svg` | App icon for bookmarks |
+| `manifest.json` | PWA manifest (install, offline, fullscreen) |
+| `service-worker.js` | Offline caching service worker |
+| `favicon.svg` | App icon for bookmarks and home screen |
 | `.gitignore` | Git ignore rules |
 | `README.md` | This file |
 

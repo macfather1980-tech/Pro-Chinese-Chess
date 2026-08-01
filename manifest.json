@@ -1,0 +1,31 @@
+{
+  "name": "象棋大师 - Master Xiangqi",
+  "short_name": "象棋大师",
+  "description": "A premium, feature-complete Chinese Chess (Xiangqi) game with AI opponent. Full rules, 4 difficulty levels, mobile optimized.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#2c1810",
+  "theme_color": "#2c1810",
+  "categories": ["games", "puzzle", "strategy"],
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "i18n": [
+    {
+      "lang": "zh-CN",
+      "description": "象棋大师 - 象棋大师是一款专业的中国象棋游戏，包含完整的规则和AI对手。"
+    },
+    {
+      "lang": "en-US",
+      "description": "Master Xiangqi - A premium Chinese Chess game with full rules and AI opponent."
+    }
+  ]
+}

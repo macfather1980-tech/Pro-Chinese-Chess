@@ -8,6 +8,9 @@
 <meta name="theme-color" content="#2c1810">
 <title>象棋大师 - Master Xiangqi</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-title" content="象棋大师">
+  <link rel="apple-touch-icon" href="favicon.svg">
 <style>
 /* ===== CSS RESET & BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -672,6 +675,13 @@ footer {
         <option value="on" selected>开启</option>
         <option value="off">关闭</option>
       </select>
+    </div>
+    <div class="setting-row">
+      <label>离线状态</label>
+      <span id="offline-status" style="font-size:12px;color:var(--ui-accent);">检测中...</span>
+    </div>
+    <div style="margin-top:12px;">
+      <button class="btn danger" onclick="game.clearCache()">🗑 清除缓存</button>
     </div>
     <div style="margin-top:16px;">
       <button class="btn primary" onclick="game.applySettings()">应用</button>
@@ -1953,12 +1963,63 @@ class GameUI {
   closeGameover() {
     document.getElementById('gameover-modal').style.display = 'none';
   }
+
+  // ===== PWA / OFFLINE =====
+  updateOfflineStatus() {
+    const statusEl = document.getElementById('offline-status');
+    if (!statusEl) return;
+    
+    if (navigator.onLine) {
+      statusEl.textContent = '在线 Online';
+      statusEl.style.color = '#4caf50';
+    } else {
+      statusEl.textContent = '离线 Offline ✓';
+      statusEl.style.color = '#ff9800';
+    }
+  }
+
+  async clearCache() {
+    if ('serviceWorker' in navigator && 'caches' in window) {
+      try {
+        const cacheNames = await caches.keys();
+        for (const name of cacheNames) {
+          await caches.delete(name);
+        }
+        // Notify SW to skip waiting and update
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update();
+        }
+        this.updateOfflineStatus();
+        alert('缓存已清除。重新加载页面以获取最新版本。\nCache cleared. Reload the page.');
+      } catch (err) {
+        console.error('Failed to clear cache:', err);
+      }
+    }
+  }
 }
 
 // ===== INITIALIZATION =====
 let game;
 window.addEventListener('DOMContentLoaded', () => {
   game = new GameUI();
+  
+  // Register Service Worker for offline play
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js')
+      .then((reg) => {
+        console.log('[SW] Registered', reg.scope);
+        // Update offline status after SW is ready
+        setTimeout(() => game.updateOfflineStatus(), 500);
+      })
+      .catch((err) => {
+        console.warn('[SW] Registration failed:', err);
+      });
+  }
+  
+  // Update status when online/offline
+  window.addEventListener('online', () => game.updateOfflineStatus());
+  window.addEventListener('offline', () => game.updateOfflineStatus());
 });
 
 // Handle resize with debounce
